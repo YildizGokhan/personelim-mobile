@@ -1,4 +1,11 @@
 import { create } from "zustand";
+import {
+  signIn as signInService,
+  signUp as signUpService,
+  logout as logoutService,
+  getCurrentUser as getCurrentUserService,
+  updateUserProfile as updateUserProfileService,
+} from "../services/auth";
 
 const useAuthStore = create((set, get) => ({
   // State
@@ -24,8 +31,7 @@ const useAuthStore = create((set, get) => ({
   login: async (email, password) => {
     set({ isLoading: true });
     try {
-      const { signIn } = await import("../services/auth");
-      const result = await signIn(email, password);
+      const result = await signInService(email, password);
 
       if (result.success) {
         set({
@@ -49,8 +55,7 @@ const useAuthStore = create((set, get) => ({
   register: async (name, email, password) => {
     set({ isLoading: true });
     try {
-      const { signUp } = await import("../services/auth");
-      const result = await signUp(name, email, password);
+      const result = await signUpService(name, email, password);
 
       if (result.success) {
         set({
@@ -74,8 +79,7 @@ const useAuthStore = create((set, get) => ({
   logout: async () => {
     set({ isLoading: true });
     try {
-      const { logout } = await import("../services/auth");
-      const result = await logout();
+      const result = await logoutService();
 
       if (result.success) {
         set({
@@ -109,8 +113,7 @@ const useAuthStore = create((set, get) => ({
   fetchCurrentUser: async () => {
     set({ isLoading: true });
     try {
-      const { getCurrentUser } = await import("../services/auth");
-      const result = await getCurrentUser();
+      const result = await getCurrentUserService();
 
       if (result.success) {
         set({
@@ -133,8 +136,7 @@ const useAuthStore = create((set, get) => ({
   updateProfile: async (updateData) => {
     set({ isLoading: true });
     try {
-      const { updateUserProfile } = await import("../services/auth");
-      const result = await updateUserProfile(updateData);
+      const result = await updateUserProfileService(updateData);
 
       if (result.success) {
         set({

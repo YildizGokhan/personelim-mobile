@@ -5,7 +5,13 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import { auth } from "./firebase";
-import { saveToken, saveUser, saveBusiness, clearAll } from "./storage";
+import {
+  saveToken,
+  saveUser,
+  saveBusiness,
+  clearAll,
+  getToken,
+} from "./storage";
 
 // Backend API base URL - .env'den alınacak
 // Backend API base URL - .env'den alınacak
