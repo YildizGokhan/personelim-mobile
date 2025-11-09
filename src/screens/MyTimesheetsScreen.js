@@ -11,6 +11,78 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import usePersonelStore from "../store/personelStore";
 
+const getTimesheetIdentifier = (entry) =>
+  entry?.id || entry?._id || entry?.timesheetId || entry?.uuid || entry?.code;
+
+const parseTimeToMinutes = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number" && !Number.isNaN(value)) {
+    return value;
+  }
+  const normalized =
+    typeof value === "string" ? value.trim() : String(value).trim();
+
+  if (/^\d{2}:\d{2}$/.test(normalized)) {
+    const [hour, minute] = normalized.split(":").map(Number);
+    return hour * 60 + minute;
+  }
+
+  const date = new Date(normalized);
+  if (!Number.isNaN(date.getTime())) {
+    return date.getHours() * 60 + date.getMinutes();
+  }
+
+  return null;
+};
+
+const deriveTotalHours = (entry) => {
+  const explicit =
+    entry?.totalHours ??
+    entry?.workedHours ??
+    entry?.hours ??
+    entry?.durationHours;
+
+  if (
+    explicit !== null &&
+    explicit !== undefined &&
+    explicit !== "" &&
+    !Number.isNaN(Number(explicit))
+  ) {
+    return Number(explicit);
+  }
+
+  const start =
+    entry?.startTime || entry?.clockIn || entry?.inTime || entry?.start;
+  const end =
+    entry?.endTime || entry?.clockOut || entry?.outTime || entry?.end;
+
+  const breakMinutes =
+    entry?.breakMinutes ??
+    entry?.breakDuration ??
+    entry?.breakTime ??
+    entry?.break ??
+    0;
+
+  const startMinutes = parseTimeToMinutes(start);
+  const endMinutes = parseTimeToMinutes(end);
+
+  if (
+    startMinutes === null ||
+    endMinutes === null ||
+    Number.isNaN(startMinutes) ||
+    Number.isNaN(endMinutes) ||
+    endMinutes <= startMinutes
+  ) {
+    return null;
+  }
+
+  const durationMinutes = Math.max(
+    endMinutes - startMinutes - Number(breakMinutes || 0),
+    0
+  );
+  return Number((durationMinutes / 60).toFixed(2));
+};
+
 const formatDate = (dateValue) => {
   if (!dateValue) return "-";
   try {
@@ -96,13 +168,11 @@ const MyTimesheetsScreen = ({ navigation }) => {
   const totalTrackedHours = useMemo(() => {
     if (!myTimesheets?.length) return 0;
     return myTimesheets.reduce((acc, entry) => {
-      const totalHours =
-        entry?.totalHours ??
-        entry?.workedHours ??
-        entry?.hours ??
-        entry?.durationHours ??
-        0;
-      return acc + (Number(totalHours) || 0);
+      const hours = deriveTotalHours(entry);
+      return acc +
+        (hours !== null && hours !== undefined && !Number.isNaN(Number(hours))
+          ? Number(hours)
+          : 0);
     }, 0);
   }, [myTimesheets]);
 
@@ -134,12 +204,14 @@ const MyTimesheetsScreen = ({ navigation }) => {
     const startTime = item?.startTime || item?.clockIn || item?.inTime;
     const endTime = item?.endTime || item?.clockOut || item?.outTime;
     const breakMinutes =
-      item?.breakMinutes ?? item?.breakDuration ?? item?.breakTime ?? 0;
-    const totalHours =
-      item?.totalHours ??
-      item?.workedHours ??
-      item?.hours ??
-      item?.durationHours;
+      item?.breakMinutes ?? item?.breakDuration ?? item?.breakTime ?? null;
+    const totalHours = deriveTotalHours(item);
+    const hasBreak =
+      breakMinutes !== null && breakMinutes !== undefined && breakMinutes !== "";
+    const hasTotalHours =
+      totalHours !== null &&
+      totalHours !== undefined &&
+      !Number.isNaN(Number(totalHours));
 
     return (
       <Card style={styles.timesheetCard}>
@@ -182,7 +254,7 @@ const MyTimesheetsScreen = ({ navigation }) => {
               Molalar
             </Text>
             <Text category="p2">
-              {breakMinutes ? `${breakMinutes} dk` : "Belirtilmemiş"}
+              {hasBreak ? `${breakMinutes} dk` : "Belirtilmemiş"}
             </Text>
           </View>
           <View style={styles.row}>
@@ -190,7 +262,7 @@ const MyTimesheetsScreen = ({ navigation }) => {
               Toplam Süre
             </Text>
             <Text category="p2">
-              {totalHours ? `${totalHours} saat` : "-"}
+              {hasTotalHours ? `${Number(totalHours).toFixed(2)} saat` : "-"}
             </Text>
           </View>
           {item?.notes && (
@@ -233,7 +305,7 @@ const MyTimesheetsScreen = ({ navigation }) => {
                 color={props?.style?.tintColor || "#F44336"}
               />
             )}
-            onPress={() => handleDelete(item?.id || item?._id)}
+            onPress={() => handleDelete(getTimesheetIdentifier(item))}
           >
             Sil
           </Button>
@@ -268,7 +340,7 @@ const MyTimesheetsScreen = ({ navigation }) => {
           </Card>
           <Card style={styles.statCard}>
             <Text category="h6" style={styles.statNumber}>
-              {totalTrackedHours.toFixed(1)}
+              {totalTrackedHours.toFixed(2)}
             </Text>
             <Text category="s2" style={styles.statLabel}>
               Toplam Saat
@@ -281,7 +353,7 @@ const MyTimesheetsScreen = ({ navigation }) => {
             data={myTimesheets}
             renderItem={renderTimesheetItem}
             keyExtractor={(item, index) =>
-              item?.id || item?._id || `timesheet-${index}`
+              getTimesheetIdentifier(item) || `timesheet-${index}`
             }
             refreshControl={
               <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />

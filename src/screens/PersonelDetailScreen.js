@@ -247,6 +247,21 @@ const PersonelDetailScreen = ({ navigation, route }) => {
           </Button>
           <Button
             appearance="outline"
+            status="info"
+            onPress={() =>
+              navigation.navigate("EmployeeTimesheets", {
+                employeeId: personelId,
+                employeeName: `${personelData.firstName || ""} ${
+                  personelData.lastName || ""
+                }`,
+              })
+            }
+            style={styles.timesheetButton}
+          >
+            Mesailer
+          </Button>
+          <Button
+            appearance="outline"
             status="danger"
             onPress={handleDelete}
             disabled={isLoading}
@@ -339,6 +354,9 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   editButton: {
+    flex: 1,
+  },
+  timesheetButton: {
     flex: 1,
   },
   deleteButton: {

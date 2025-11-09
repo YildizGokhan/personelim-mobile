@@ -166,6 +166,7 @@ const CreateTimesheetScreen = ({ navigation, route }) => {
     formState: { errors },
     getValues,
     setValue,
+    watch,
   } = useForm({
     resolver: zodResolver(timesheetSchema),
     defaultValues,
@@ -229,6 +230,35 @@ const CreateTimesheetScreen = ({ navigation, route }) => {
       handleShowIosPicker(fieldName, initialDate);
     }
   };
+
+  const watchedStartTime = watch("startTime");
+  const watchedEndTime = watch("endTime");
+  const watchedBreakMinutes = watch("breakMinutes");
+
+  const totalDurationMinutes = useMemo(() => {
+    const toMinutes = (time) => {
+      const match = time?.match(/^(\d{2}):(\d{2})$/);
+      if (!match) return null;
+      const [, hh, mm] = match;
+      return Number(hh) * 60 + Number(mm);
+    };
+
+    const start = toMinutes(watchedStartTime);
+    const end = toMinutes(watchedEndTime);
+    if (start === null || end === null || end <= start) {
+      return null;
+    }
+
+    const breakMinutes = Number(watchedBreakMinutes);
+    const safeBreak = Number.isNaN(breakMinutes) ? 0 : Math.max(breakMinutes, 0);
+    const duration = end - start - safeBreak;
+    return duration > 0 ? duration : 0;
+  }, [watchedStartTime, watchedEndTime, watchedBreakMinutes]);
+
+  const totalDurationLabel =
+    totalDurationMinutes !== null
+      ? (totalDurationMinutes / 60).toFixed(2)
+      : null;
 
   const onSubmit = async (formData) => {
     const payload = {
@@ -352,6 +382,14 @@ const CreateTimesheetScreen = ({ navigation, route }) => {
                   />
                 )}
               />
+
+              {totalDurationLabel && (
+                <View style={styles.durationSummary}>
+                  <Text category="s2" style={styles.durationLabel}>
+                    Toplam süre: {totalDurationLabel} saat
+                  </Text>
+                </View>
+              )}
 
               <Controller
                 control={control}
@@ -488,6 +526,17 @@ const styles = StyleSheet.create({
   timeSuffix: {
     fontSize: 16,
     paddingHorizontal: 8,
+  },
+  durationSummary: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: "#F4F6FB",
+  },
+  durationLabel: {
+    textAlign: "center",
+    color: "#2E3A59",
+    fontWeight: "600",
   },
   modalBackdrop: {
     flex: 1,

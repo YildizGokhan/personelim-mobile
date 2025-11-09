@@ -108,12 +108,24 @@ const PersonelListScreen = ({ navigation }) => {
           <Text category="h4" style={styles.title}>
             Personel Listesi
           </Text>
-          <Button
-            size="small"
-            onPress={() => navigation.navigate("AddPersonel")}
-          >
-            + Ekle
-          </Button>
+          <View style={styles.headerActions}>
+            <Button
+              size="small"
+              appearance="outline"
+              status="basic"
+              style={styles.headerButton}
+              onPress={() => navigation.navigate("ArchivedPersonel")}
+            >
+              Arşiv
+            </Button>
+            <Button
+              size="small"
+              style={styles.headerButton}
+              onPress={() => navigation.navigate("AddPersonel", { mode: "create" })}
+            >
+              + Ekle
+            </Button>
+          </View>
         </View>
 
         {/* Search */}
@@ -209,6 +221,13 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
+  },
+  headerActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  headerButton: {
+    minWidth: 80,
   },
   searchInput: {
     marginBottom: 16,

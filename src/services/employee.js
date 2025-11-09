@@ -347,6 +347,82 @@ export const deleteTimesheetEntry = async (timesheetId) => {
   }
 };
 
+export const getEmployeeTimesheets = async (
+  employeeId,
+  page = 1,
+  limit = 10,
+  status = null
+) => {
+  try {
+    const headers = await getAuthHeaders();
+    let url = `${API_BASE_URL}/employees/${employeeId}/timesheets?page=${page}&limit=${limit}`;
+
+    if (status) {
+      url += `&status=${encodeURIComponent(status)}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      return {
+        success: true,
+        data: data.data ?? data,
+      };
+    } else {
+      return { success: false, error: data.message || data.error };
+    }
+  } catch (error) {
+    console.error("Get employee timesheets error:", error);
+    return { success: false, error: "Bağlantı hatası. Lütfen tekrar deneyin." };
+  }
+};
+
+export const approveTimesheetEntry = async (
+  employeeId,
+  timesheetId,
+  status,
+  note = null
+) => {
+  try {
+    const headers = await getAuthHeaders();
+    const payload = {
+      status,
+    };
+
+    if (note && note.trim() !== "") {
+      payload.note = note.trim();
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}/employees/${employeeId}/timesheets/${timesheetId}/approve`,
+      {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(payload),
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+      return {
+        success: true,
+        timesheet: data.data ?? data,
+      };
+    } else {
+      return { success: false, error: data.message || data.error };
+    }
+  } catch (error) {
+    console.error("Approve timesheet error:", error);
+    return { success: false, error: "Bağlantı hatası. Lütfen tekrar deneyin." };
+  }
+};
+
 // Mevcut çalışanın kendi bilgilerini güncelle (sadece employee için)
 export const updateCurrentEmployeeData = async (updateData) => {
   try {

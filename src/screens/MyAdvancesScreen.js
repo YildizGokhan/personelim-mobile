@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, View, FlatList, RefreshControl } from "react-native";
 import { Layout, Text, Button, Card } from "@ui-kitten/components";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -7,13 +7,22 @@ import usePersonelStore from "../store/personelStore";
 
 const MyAdvancesScreen = ({ navigation }) => {
   const { myAdvances, fetchMyAdvances, isLoading } = usePersonelStore();
+  const [selectedStatus, setSelectedStatus] = useState(null);
+
+  const statusOptions = [
+    { label: "Tümü", value: null },
+    { label: "Bekleyen", value: "pending" },
+    { label: "Onaylanan", value: "approved" },
+    { label: "Ödenen", value: "paid" },
+    { label: "Reddedilen", value: "rejected" },
+  ];
 
   useEffect(() => {
-    fetchMyAdvances();
-  }, []);
+    fetchMyAdvances(1, 10, selectedStatus);
+  }, [selectedStatus, fetchMyAdvances]);
 
   const handleRefresh = () => {
-    fetchMyAdvances();
+    fetchMyAdvances(1, 10, selectedStatus);
   };
 
   const getStatusColor = (status) => {
@@ -187,12 +196,30 @@ const MyAdvancesScreen = ({ navigation }) => {
           </Card>
         </View>
 
+        <View style={styles.filterRow}>
+          {statusOptions.map((option) => {
+            const active = option.value === selectedStatus;
+            return (
+              <Button
+                key={option.value ?? "all"}
+                size="tiny"
+                appearance={active ? "filled" : "outline"}
+                status={active ? "primary" : "basic"}
+                style={styles.filterButton}
+                onPress={() => setSelectedStatus(option.value)}
+              >
+                {option.label}
+              </Button>
+            );
+          })}
+        </View>
+
         {/* Advances List */}
         {myAdvances && myAdvances.length > 0 ? (
           <FlatList
             data={myAdvances}
             renderItem={renderAdvanceItem}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item, index) => item.id || item._id || `${index}`}
             refreshControl={
               <RefreshControl
                 refreshing={isLoading}
@@ -253,6 +280,15 @@ const styles = StyleSheet.create({
   statLabel: {
     textAlign: "center",
     color: "#666",
+  },
+  filterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  filterButton: {
+    minWidth: 90,
   },
   summaryContainer: {
     flexDirection: "row",

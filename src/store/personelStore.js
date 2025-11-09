@@ -31,7 +31,128 @@ import {
   createTimesheetEntry,
   updateTimesheetEntry,
   deleteTimesheetEntry,
+  getEmployeeTimesheets,
+  approveTimesheetEntry,
 } from "../services/employee";
+
+const getTimesheetIdentifier = (entry) =>
+  entry?.id || entry?._id || entry?.timesheetId || entry?.uuid || entry?.code;
+
+const parseTimeToMinutes = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number" && !Number.isNaN(value)) {
+    return value;
+  }
+  const normalized =
+    typeof value === "string" ? value.trim() : String(value).trim();
+
+  if (/^\d{2}:\d{2}$/.test(normalized)) {
+    const [hour, minute] = normalized.split(":").map(Number);
+    return hour * 60 + minute;
+  }
+
+  const date = new Date(normalized);
+  if (!Number.isNaN(date.getTime())) {
+    return date.getHours() * 60 + date.getMinutes();
+  }
+
+  return null;
+};
+
+const calculateTotalHours = (startTime, endTime, breakMinutes = 0) => {
+  const startMinutes = parseTimeToMinutes(startTime);
+  const endMinutes = parseTimeToMinutes(endTime);
+
+  if (
+    startMinutes === null ||
+    endMinutes === null ||
+    Number.isNaN(startMinutes) ||
+    Number.isNaN(endMinutes) ||
+    endMinutes <= startMinutes
+  ) {
+    return null;
+  }
+
+  const breakValue = Number(breakMinutes) || 0;
+  const durationMinutes = Math.max(endMinutes - startMinutes - breakValue, 0);
+  return Number((durationMinutes / 60).toFixed(2));
+};
+
+const normalizeTimesheetEntry = (entry, fallback = {}) => {
+  if (!entry) return entry;
+
+  const startTime =
+    entry.startTime ??
+    entry.clockIn ??
+    entry.inTime ??
+    fallback.startTime ??
+    fallback.clockIn ??
+    fallback.inTime ??
+    null;
+
+  const endTime =
+    entry.endTime ??
+    entry.clockOut ??
+    entry.outTime ??
+    fallback.endTime ??
+    fallback.clockOut ??
+    fallback.outTime ??
+    null;
+
+  const breakMinutesRaw =
+    entry.breakMinutes ??
+    entry.breakDuration ??
+    entry.breakTime ??
+    fallback.breakMinutes ??
+    fallback.breakDuration ??
+    fallback.breakTime ??
+    null;
+
+  const totalHoursRaw =
+    entry.totalHours ??
+    entry.workedHours ??
+    entry.hours ??
+    entry.durationHours ??
+    fallback.totalHours ??
+    fallback.workedHours ??
+    fallback.hours ??
+    fallback.durationHours;
+
+  const totalHours =
+    totalHoursRaw !== undefined &&
+    totalHoursRaw !== null &&
+    totalHoursRaw !== ""
+      ? Number(totalHoursRaw)
+      : calculateTotalHours(
+          startTime,
+          endTime,
+          breakMinutesRaw !== null && breakMinutesRaw !== undefined
+            ? breakMinutesRaw
+            : 0
+        );
+
+  return {
+    ...fallback,
+    ...entry,
+    startTime,
+    endTime,
+    breakMinutes:
+      breakMinutesRaw !== null && breakMinutesRaw !== undefined
+        ? Number(breakMinutesRaw)
+        : undefined,
+    totalHours: totalHours ?? undefined,
+  };
+};
+
+const ensureTimesheetId = (entry) => {
+  const identifier = getTimesheetIdentifier(entry);
+  if (!identifier) return entry;
+  if (entry.id === identifier) return entry;
+  return { ...entry, id: identifier };
+};
+
+const normalizeTimesheetList = (entries = []) =>
+  entries.map((entry) => ensureTimesheetId(normalizeTimesheetEntry(entry)));
 
 const ensureEmployeeId = (employee) => {
   if (!employee) return employee;
@@ -63,6 +184,7 @@ const usePersonelStore = create((set, get) => ({
   myLeaves: [],
   myAdvances: [],
   myTimesheets: [],
+  employeeTimesheets: [],
   isLoading: false,
   error: null,
   pagination: {
@@ -76,6 +198,12 @@ const usePersonelStore = create((set, get) => ({
     limit: 10,
     total: 0,
   },
+  timesheetReviewPagination: {
+    page: 1,
+    limit: 10,
+    total: 0,
+  },
+  timesheetReviewLoading: false,
 
   // Actions
   setPersonelList: (personelList) => set({ personelList }),
@@ -714,9 +842,10 @@ const usePersonelStore = create((set, get) => ({
 
       if (result.success) {
         const payload = result.data || {};
-        const timesheets = Array.isArray(payload)
+        const rawTimesheets = Array.isArray(payload)
           ? payload
           : payload.timesheets || payload.items || payload.records || [];
+        const timesheets = normalizeTimesheetList(rawTimesheets);
         const total =
           payload.total ||
           payload.count ||
@@ -757,11 +886,23 @@ const usePersonelStore = create((set, get) => ({
 
       if (result.success) {
         const currentTimesheets = get().myTimesheets;
+        const fallback = {
+          ...timesheetData,
+          breakMinutes:
+            timesheetData?.breakMinutes !== undefined &&
+            timesheetData?.breakMinutes !== null &&
+            timesheetData?.breakMinutes !== ""
+              ? Number(timesheetData.breakMinutes)
+              : undefined,
+        };
+        const normalized = ensureTimesheetId(
+          normalizeTimesheetEntry(result.timesheet, fallback)
+        );
         set({
-          myTimesheets: [result.timesheet, ...currentTimesheets],
+          myTimesheets: [normalized, ...currentTimesheets],
           isLoading: false,
         });
-        return { success: true, timesheet: result.timesheet };
+        return { success: true, timesheet: normalized };
       } else {
         set({
           error: result.error,
@@ -785,16 +926,28 @@ const usePersonelStore = create((set, get) => ({
 
       if (result.success) {
         const currentTimesheets = get().myTimesheets;
+        const fallback = {
+          ...timesheetData,
+          breakMinutes:
+            timesheetData?.breakMinutes !== undefined &&
+            timesheetData?.breakMinutes !== null &&
+            timesheetData?.breakMinutes !== ""
+              ? Number(timesheetData.breakMinutes)
+              : undefined,
+        };
+        const normalized = ensureTimesheetId(
+          normalizeTimesheetEntry(result.timesheet, fallback)
+        );
         const updatedTimesheets = currentTimesheets.map((timesheet) =>
-          timesheet.id === timesheetId || timesheet._id === timesheetId
-            ? result.timesheet
+          getTimesheetIdentifier(timesheet) === timesheetId
+            ? normalized
             : timesheet
         );
         set({
           myTimesheets: updatedTimesheets,
           isLoading: false,
         });
-        return { success: true, timesheet: result.timesheet };
+        return { success: true, timesheet: normalized };
       } else {
         set({
           error: result.error,
@@ -819,8 +972,7 @@ const usePersonelStore = create((set, get) => ({
       if (result.success) {
         const currentTimesheets = get().myTimesheets;
         const filtered = currentTimesheets.filter(
-          (timesheet) =>
-            timesheet.id !== timesheetId && timesheet._id !== timesheetId
+          (timesheet) => getTimesheetIdentifier(timesheet) !== timesheetId
         );
         set({
           myTimesheets: filtered,
@@ -838,6 +990,106 @@ const usePersonelStore = create((set, get) => ({
       set({
         error: error.message,
         isLoading: false,
+      });
+      return { success: false, error: error.message };
+    }
+  },
+
+  fetchEmployeeTimesheets: async (
+    employeeId,
+    page = 1,
+    limit = 10,
+    status = null
+  ) => {
+    set({ timesheetReviewLoading: true, error: null });
+    try {
+      const result = await getEmployeeTimesheets(employeeId, page, limit, status);
+
+      if (result.success) {
+        const payload = result.data ?? {};
+        const rawTimesheets = Array.isArray(payload.timesheets)
+          ? payload.timesheets
+          : Array.isArray(payload.items)
+          ? payload.items
+          : Array.isArray(payload.records)
+          ? payload.records
+          : Array.isArray(payload.data)
+          ? payload.data
+          : Array.isArray(payload)
+          ? payload
+          : [];
+        const timesheets = normalizeTimesheetList(rawTimesheets);
+
+        const pagination =
+          payload.pagination || payload.meta || payload.pageInfo || {};
+
+        const total =
+          payload.total ??
+          pagination.total ??
+          pagination.count ??
+          pagination.totalCount ??
+          timesheets.length;
+
+        set({
+          employeeTimesheets: timesheets,
+          timesheetReviewPagination: {
+            page,
+            limit,
+            total,
+          },
+          timesheetReviewLoading: false,
+        });
+        return { success: true, data: timesheets };
+      } else {
+        set({
+          error: result.error,
+          timesheetReviewLoading: false,
+        });
+        return { success: false, error: result.error };
+      }
+    } catch (error) {
+      set({
+        error: error.message,
+        timesheetReviewLoading: false,
+      });
+      return { success: false, error: error.message };
+    }
+  },
+
+  approveTimesheet: async (employeeId, timesheetId, status, note = null) => {
+    set({ timesheetReviewLoading: true, error: null });
+    try {
+      const result = await approveTimesheetEntry(
+        employeeId,
+        timesheetId,
+        status,
+        note
+      );
+
+      if (result.success) {
+        const normalized = ensureTimesheetId(
+          normalizeTimesheetEntry(result.timesheet)
+        );
+        set((state) => ({
+          employeeTimesheets: state.employeeTimesheets.map((entry) => {
+            const entryId =
+              entry.id || entry._id || entry.timesheetId || entry.uuid;
+            return entryId === timesheetId ? normalized : entry;
+          }),
+          timesheetReviewLoading: false,
+        }));
+        return { success: true, timesheet: normalized };
+      } else {
+        set({
+          error: result.error,
+          timesheetReviewLoading: false,
+        });
+        return { success: false, error: result.error };
+      }
+    } catch (error) {
+      set({
+        error: error.message,
+        timesheetReviewLoading: false,
       });
       return { success: false, error: error.message };
     }

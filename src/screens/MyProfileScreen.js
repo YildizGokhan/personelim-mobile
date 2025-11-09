@@ -13,6 +13,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import usePersonelStore from "../store/personelStore";
+import useAuthStore from "../store/authStore";
 
 // Validation schema - Sadece çalışanın güncelleyebileceği alanlar
 const profileSchema = z.object({
@@ -30,6 +31,22 @@ const profileSchema = z.object({
 const MyProfileScreen = () => {
   const { currentPersonel, fetchMyData, updateMyData, isLoading } =
     usePersonelStore();
+  const { logout } = useAuthStore();
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Çıkış Yap",
+      "Hesabınızdan çıkmak istediğinize emin misiniz?",
+      [
+        { text: "İptal", style: "cancel" },
+        {
+          text: "Çıkış Yap",
+          style: "destructive",
+          onPress: () => logout(),
+        },
+      ]
+    );
+  };
 
   const {
     control,
@@ -241,6 +258,15 @@ const MyProfileScreen = () => {
             </Button>
           </Card>
         </ScrollView>
+
+        <Button
+          style={styles.logoutButton}
+          status="danger"
+          appearance="outline"
+          onPress={handleLogout}
+        >
+          Çıkış Yap
+        </Button>
       </Layout>
     </SafeAreaView>
   );
@@ -308,6 +334,9 @@ const styles = StyleSheet.create({
   },
   updateButton: {
     marginTop: 8,
+  },
+  logoutButton: {
+    marginTop: 16,
   },
 });
 

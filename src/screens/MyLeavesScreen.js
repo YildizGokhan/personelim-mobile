@@ -14,13 +14,21 @@ import usePersonelStore from "../store/personelStore";
 
 const MyLeavesScreen = ({ navigation }) => {
   const { myLeaves, fetchMyLeaves, isLoading } = usePersonelStore();
+  const [selectedStatus, setSelectedStatus] = useState(null);
+
+  const statusOptions = [
+    { label: "Tümü", value: null },
+    { label: "Bekleyen", value: "pending" },
+    { label: "Onaylanan", value: "approved" },
+    { label: "Reddedilen", value: "rejected" },
+  ];
 
   useEffect(() => {
-    fetchMyLeaves();
-  }, []);
+    fetchMyLeaves(1, 10, selectedStatus);
+  }, [selectedStatus, fetchMyLeaves]);
 
   const handleRefresh = () => {
-    fetchMyLeaves();
+    fetchMyLeaves(1, 10, selectedStatus);
   };
 
   const getStatusColor = (status) => {
@@ -177,6 +185,24 @@ const MyLeavesScreen = ({ navigation }) => {
           </Card>
         </View>
 
+        <View style={styles.filterRow}>
+          {statusOptions.map((option) => {
+            const active = option.value === selectedStatus;
+            return (
+              <Button
+                key={option.value ?? "all"}
+                size="tiny"
+                appearance={active ? "filled" : "outline"}
+                status={active ? "primary" : "basic"}
+                style={styles.filterButton}
+                onPress={() => setSelectedStatus(option.value)}
+              >
+                {option.label}
+              </Button>
+            );
+          })}
+        </View>
+
         {/* Leaves List */}
         {myLeaves && myLeaves.length > 0 ? (
           <FlatList
@@ -243,6 +269,15 @@ const styles = StyleSheet.create({
   statLabel: {
     textAlign: "center",
     color: "#666",
+  },
+  filterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  filterButton: {
+    minWidth: 90,
   },
   list: {
     flex: 1,
