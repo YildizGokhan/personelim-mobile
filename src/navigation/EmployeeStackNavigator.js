@@ -3,6 +3,7 @@ import { createStackNavigator } from "@react-navigation/stack";
 import EmployeeTabNavigator from "./EmployeeTabNavigator";
 import CreateLeaveScreen from "../screens/CreateLeaveScreen";
 import CreateAdvanceScreen from "../screens/CreateAdvanceScreen";
+import CreateTimesheetScreen from "../screens/CreateTimesheetScreen";
 
 const Stack = createStackNavigator();
 
@@ -40,6 +41,14 @@ const EmployeeStackNavigator = () => {
         component={CreateAdvanceScreen}
         options={{
           title: "Avans Talebi Oluştur",
+          presentation: "modal",
+        }}
+      />
+      <Stack.Screen
+        name="CreateTimesheet"
+        component={CreateTimesheetScreen}
+        options={{
+          title: "Mesai Kaydı",
           presentation: "modal",
         }}
       />

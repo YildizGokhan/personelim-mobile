@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { StyleSheet, View, Alert } from "react-native";
 import { Layout, Text, Input, Button, Card } from "@ui-kitten/components";
 import { useForm, Controller } from "react-hook-form";
@@ -14,6 +14,7 @@ const loginSchema = z.object({
 
 const LoginScreen = ({ navigation }) => {
   const { login, isLoading } = useAuthStore();
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     control,
@@ -76,7 +77,15 @@ const LoginScreen = ({ navigation }) => {
                 status={errors.password ? "danger" : "basic"}
                 caption={errors.password?.message}
                 style={styles.input}
-                secureTextEntry
+                secureTextEntry={!showPassword}
+                accessoryRight={() => (
+                  <Text
+                    style={styles.passwordEye}
+                    onPress={() => setShowPassword((prev) => !prev)}
+                  >
+                    {showPassword ? "🙈" : "👁"}
+                  </Text>
+                )}
               />
             )}
           />
@@ -133,6 +142,10 @@ const styles = StyleSheet.create({
   },
   registerButton: {
     marginBottom: 8,
+  },
+  passwordEye: {
+    fontSize: 16,
+    paddingHorizontal: 8,
   },
 });
 

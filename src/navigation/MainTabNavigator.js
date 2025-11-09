@@ -54,6 +54,14 @@ const MainTabNavigator = () => {
         options={{
           tabBarLabel: "Personel",
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            // Varsayılan davranışı iptal etmeyelim ancak her tab basışında listeye dönelim
+            navigation.navigate("Personel", {
+              screen: "PersonelList",
+            });
+          },
+        })}
       />
       <Tab.Screen
         name="Reports"

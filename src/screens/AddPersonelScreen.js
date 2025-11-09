@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { StyleSheet, View, ScrollView, Alert } from "react-native";
 import {
   Layout,
@@ -10,6 +10,7 @@ import {
   SelectItem,
   IndexPath,
   Datepicker,
+  Toggle,
 } from "@ui-kitten/components";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useForm, Controller } from "react-hook-form";
@@ -17,95 +18,134 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import usePersonelStore from "../store/personelStore";
 
-// Zod validation schema - Backend Employee model'e uygun
-const personelSchema = z.object({
-  employeeCode: z
-    .string()
-    .min(2, "Personel kodu en az 2 karakter olmalıdır")
-    .max(20, "Personel kodu en fazla 20 karakter olabilir")
-    .optional(),
-  firstName: z
-    .string()
-    .min(2, "Ad en az 2 karakter olmalıdır")
-    .max(50, "Ad en fazla 50 karakter olabilir"),
-  lastName: z
-    .string()
-    .min(2, "Soyad en az 2 karakter olmalıdır")
-    .max(50, "Soyad en fazla 50 karakter olabilir"),
-  profilePictureUrl: z
-    .string()
-    .optional()
-    .refine(
-      (val) => !val || val === "" || z.string().url().safeParse(val).success,
-      {
-        message: "Geçerli bir URL giriniz",
+const personelSchema = z
+  .object({
+    employeeCode: z
+      .string()
+      .optional()
+      .refine(
+        (val) =>
+          !val ||
+          val.trim() === "" ||
+          (val.trim().length >= 2 && val.trim().length <= 20),
+        {
+          message: "Personel kodu 2-20 karakter arasında olmalıdır",
+        }
+      ),
+    firstName: z
+      .string()
+      .min(2, "Ad en az 2 karakter olmalıdır")
+      .max(50, "Ad en fazla 50 karakter olabilir"),
+    lastName: z
+      .string()
+      .min(2, "Soyad en az 2 karakter olmalıdır")
+      .max(50, "Soyad en fazla 50 karakter olabilir"),
+    profilePictureUrl: z
+      .string()
+      .optional()
+      .refine(
+        (val) => !val || val === "" || z.string().url().safeParse(val).success,
+        {
+          message: "Geçerli bir URL giriniz",
+        }
+      ),
+    email: z
+      .string()
+      .email("Geçerli bir email adresi giriniz")
+      .min(1, "Email adresi gereklidir"),
+    phoneNumber: z
+      .string()
+      .optional()
+      .refine(
+        (val) =>
+          !val ||
+          val.trim() === "" ||
+          /^(\+90|0)?[5][0-9]{9}$/.test(val.replace(/\s/g, "")),
+        {
+          message: "Geçerli bir Türkiye telefon numarası giriniz (05XX XXX XXXX)",
+        }
+      ),
+    tcKimlikNo: z
+      .string()
+      .optional()
+      .refine((val) => !val || val.trim() === "" || /^\d{11}$/.test(val), {
+        message: "TC Kimlik No 11 haneli sayı olmalıdır",
+      }),
+    dateOfBirth: z.string().optional(),
+    gender: z.enum(["Erkek", "Kadın", "Diğer"]).optional(),
+    address: z
+      .string()
+      .max(500, "Adres en fazla 500 karakter olabilir")
+      .optional(),
+    position: z
+      .string()
+      .optional()
+      .refine(
+        (val) =>
+          !val || val.trim() === "" || (val.length >= 2 && val.length <= 100),
+        {
+          message: "Pozisyon 2-100 karakter arasında olmalıdır",
+        }
+      ),
+    department: z
+      .string()
+      .optional()
+      .refine(
+        (val) =>
+          !val || val.trim() === "" || (val.length >= 2 && val.length <= 100),
+        {
+          message: "Departman 2-100 karakter arasında olmalıdır",
+        }
+      ),
+    contractType: z
+      .enum(["Belirsiz Süreli", "Belirli Süreli", "Part-time", "Stajyer"])
+      .optional(),
+    workingHoursPerDay: z.number().min(1).max(24).optional(),
+    startDate: z.string().min(1, "Başlangıç tarihi gereklidir"),
+    terminationDate: z.string().optional(),
+    salary: z
+      .string()
+      .optional()
+      .refine((val) => !val || val.trim() === "" || !isNaN(parseFloat(val)), {
+        message: "Geçerli bir maaş tutarı giriniz",
+      }),
+    bankName: z.string().optional(),
+    iban: z.string().optional(),
+    insuranceInfo: z.string().optional(),
+    isActive: z.boolean().optional(),
+    createLoginAccount: z.boolean().default(false),
+    password: z.string().optional(),
+    confirmPassword: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.createLoginAccount) {
+      if (!data.password || data.password.trim().length < 6) {
+        ctx.addIssue({
+          path: ["password"],
+          code: z.ZodIssueCode.custom,
+          message: "Şifre en az 6 karakter olmalıdır",
+        });
       }
-    ),
-  email: z
-    .string()
-    .email("Geçerli bir email adresi giriniz")
-    .min(1, "Email adresi gereklidir"),
-  phoneNumber: z
-    .string()
-    .optional()
-    .refine(
-      (val) =>
-        !val ||
-        val.trim() === "" ||
-        /^(\+90|0)?[5][0-9]{9}$/.test(val.replace(/\s/g, "")),
-      {
-        message: "Geçerli bir Türkiye telefon numarası giriniz (05XX XXX XXXX)",
+      if (!data.confirmPassword || data.confirmPassword.trim().length < 6) {
+        ctx.addIssue({
+          path: ["confirmPassword"],
+          code: z.ZodIssueCode.custom,
+          message: "Şifre tekrarını giriniz",
+        });
       }
-    ),
-  tcKimlikNo: z
-    .string()
-    .optional()
-    .refine((val) => !val || val.trim() === "" || /^\d{11}$/.test(val), {
-      message: "TC Kimlik No 11 haneli sayı olmalıdır",
-    }),
-  dateOfBirth: z.string().optional(),
-  gender: z.enum(["Erkek", "Kadın", "Diğer"]).optional(),
-  address: z
-    .string()
-    .max(500, "Adres en fazla 500 karakter olabilir")
-    .optional(),
-  position: z
-    .string()
-    .optional()
-    .refine(
-      (val) =>
-        !val || val.trim() === "" || (val.length >= 2 && val.length <= 100),
-      {
-        message: "Pozisyon 2-100 karakter arasında olmalıdır",
+      if (
+        data.password &&
+        data.confirmPassword &&
+        data.password.trim() !== data.confirmPassword.trim()
+      ) {
+        ctx.addIssue({
+          path: ["confirmPassword"],
+          code: z.ZodIssueCode.custom,
+          message: "Şifreler eşleşmiyor",
+        });
       }
-    ),
-  department: z
-    .string()
-    .optional()
-    .refine(
-      (val) =>
-        !val || val.trim() === "" || (val.length >= 2 && val.length <= 100),
-      {
-        message: "Departman 2-100 karakter arasında olmalıdır",
-      }
-    ),
-  contractType: z
-    .enum(["Belirsiz Süreli", "Belirli Süreli", "Part-time", "Stajyer"])
-    .optional(),
-  workingHoursPerDay: z.number().min(1).max(24).optional(),
-  startDate: z.string().min(1, "Başlangıç tarihi gereklidir"),
-  terminationDate: z.string().optional(),
-  salary: z
-    .string()
-    .optional()
-    .refine((val) => !val || val.trim() === "" || !isNaN(parseFloat(val)), {
-      message: "Geçerli bir maaş tutarı giriniz",
-    }),
-  bankName: z.string().optional(),
-  iban: z.string().optional(),
-  insuranceInfo: z.string().optional(),
-  isActive: z.boolean().optional(),
-});
+    }
+  });
 
 const departments = [
   "İnsan Kaynakları",
@@ -127,51 +167,43 @@ const contractTypes = [
 
 const genderOptions = ["Erkek", "Kadın", "Diğer"];
 
-const AddPersonelScreen = ({ navigation }) => {
-  // Helper function to format date as DD.MM.YYYY
-  const formatDateToDDMMYYYY = (date) => {
-    if (!date) return "";
-    const d = new Date(date);
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const year = d.getFullYear();
-    return `${day}.${month}.${year}`;
-  };
+const formatDateToDDMMYYYY = (date) => {
+  if (!date) return "";
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}.${month}.${year}`;
+};
 
-  // Helper function to convert DD.MM.YYYY back to Date
-  const parseDDMMYYYYToDate = (dateString) => {
-    if (!dateString) return new Date();
-    const [day, month, year] = dateString.split(".");
-    return new Date(year, month - 1, day);
-  };
+const parseDDMMYYYYToDate = (dateString) => {
+  if (!dateString) return new Date();
+  const [day, month, year] = dateString.split(".");
+  return new Date(year, month - 1, day);
+};
 
-  // Helper function to format date for backend (YYYY-MM-DD)
-  const formatDateForBackend = (dateString) => {
-    if (!dateString) return null;
-    const parts = dateString.split(".");
-    if (parts.length !== 3) return null;
-    return `${parts[2]}-${parts[1]}-${parts[0]}`;
-  };
+const ensureIndex = (list, value) => {
+  const idx = list.findIndex((item) => item === value);
+  return idx >= 0 ? new IndexPath(idx) : new IndexPath(0);
+};
 
-  const { addPersonel, isLoading, fetchPersonelList } = usePersonelStore();
-  const [selectedDepartmentIndex, setSelectedDepartmentIndex] = useState(
-    new IndexPath(0)
+const extractEmployeeId = (employee) => {
+  if (!employee) return null;
+  return (
+    employee.id ||
+    employee._id ||
+    employee.employeeId ||
+    employee.userId ||
+    employee.uuid ||
+    employee.guid ||
+    null
   );
-  const [selectedContractIndex, setSelectedContractIndex] = useState(
-    new IndexPath(0)
-  );
-  const [selectedGenderIndex, setSelectedGenderIndex] = useState(
-    new IndexPath(0)
-  );
+};
 
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useForm({
-    resolver: zodResolver(personelSchema),
-    defaultValues: {
+const getInitialValues = (personel) => {
+  if (!personel) {
+    return {
       employeeCode: "",
       firstName: "",
       lastName: "",
@@ -193,110 +225,288 @@ const AddPersonelScreen = ({ navigation }) => {
       iban: "",
       insuranceInfo: "",
       isActive: true,
-    },
+      createLoginAccount: false,
+      password: "",
+      confirmPassword: "",
+    };
+  }
+
+  const salaryValue =
+    typeof personel.salary === "object"
+      ? personel.salary?.grossAmount?.toString() ?? ""
+      : personel.salary?.toString() ?? "";
+
+  const bankNameValue =
+    typeof personel.salary === "object"
+      ? personel.salary?.bankName ?? ""
+      : personel.bankName ?? "";
+
+  const ibanValue =
+    typeof personel.salary === "object"
+      ? personel.salary?.iban ?? ""
+      : personel.iban ?? "";
+
+  const insuranceValue =
+    typeof personel.insuranceInfo === "object"
+      ? personel.insuranceInfo?.sicilNo ?? ""
+      : personel.insuranceInfo ?? "";
+
+  return {
+    employeeCode: personel.employeeCode ?? "",
+    firstName: personel.firstName ?? "",
+    lastName: personel.lastName ?? "",
+    profilePictureUrl: personel.profilePictureUrl ?? "",
+    email: personel.email ?? "",
+    phoneNumber: personel.phoneNumber ?? personel.phone ?? "",
+    tcKimlikNo: personel.tcKimlikNo ?? "",
+    dateOfBirth: personel.dateOfBirth
+      ? formatDateToDDMMYYYY(personel.dateOfBirth)
+      : "",
+    gender: personel.gender ?? genderOptions[0],
+    address: personel.address ?? "",
+    position: personel.position ?? "",
+    department: personel.department ?? departments[0],
+    contractType: personel.contractType ?? contractTypes[0],
+    workingHoursPerDay: personel.workingHoursPerDay ?? 8,
+    startDate: personel.startDate
+      ? formatDateToDDMMYYYY(personel.startDate)
+      : formatDateToDDMMYYYY(new Date()),
+    terminationDate: personel.terminationDate
+      ? formatDateToDDMMYYYY(personel.terminationDate)
+      : "",
+    salary: salaryValue,
+    bankName: bankNameValue,
+    iban: ibanValue,
+    insuranceInfo: insuranceValue,
+    isActive: personel.isDeleted ? false : true,
+    createLoginAccount: false,
+    password: "",
+    confirmPassword: "",
+  };
+};
+
+const buildEmployeePayload = ({
+  formData,
+  selectedDepartmentIndex,
+  selectedContractIndex,
+  selectedGenderIndex,
+  existingPersonel,
+}) => {
+  const startDateISO = formData.startDate
+    ? parseDDMMYYYYToDate(formData.startDate).toISOString().split("T")[0]
+    : null;
+
+  const payload = {
+    firstName: formData.firstName.trim(),
+    lastName: formData.lastName.trim(),
+    email: formData.email.trim(),
+    startDate: startDateISO,
+    workingHoursPerDay: formData.workingHoursPerDay || 8,
+    contractType:
+      contractTypes[selectedContractIndex.row] || "Belirsiz Süreli",
+    isActive:
+      formData.isActive !== undefined
+        ? formData.isActive
+        : !existingPersonel?.isDeleted,
+  };
+
+  if (formData.employeeCode?.trim()) {
+    payload.employeeCode = formData.employeeCode.trim();
+  }
+  if (formData.profilePictureUrl?.trim()) {
+    payload.profilePictureUrl = formData.profilePictureUrl.trim();
+  }
+  if (formData.phoneNumber?.trim()) {
+    payload.phoneNumber = formData.phoneNumber.trim();
+  }
+  if (formData.tcKimlikNo?.trim()) {
+    payload.tcKimlikNo = formData.tcKimlikNo.trim();
+  }
+  if (formData.dateOfBirth?.trim()) {
+    payload.dateOfBirth = parseDDMMYYYYToDate(formData.dateOfBirth)
+      .toISOString()
+      .split("T")[0];
+  }
+
+  payload.gender = genderOptions[selectedGenderIndex.row] ?? null;
+
+  if (formData.address?.trim()) {
+    payload.address = formData.address.trim();
+  }
+  if (formData.position?.trim()) {
+    payload.position = formData.position.trim();
+  }
+
+  payload.department = departments[selectedDepartmentIndex.row] ?? null;
+
+  if (formData.terminationDate?.trim()) {
+    payload.terminationDate = parseDDMMYYYYToDate(formData.terminationDate)
+      .toISOString()
+      .split("T")[0];
+  }
+
+  const existingSalary =
+    typeof existingPersonel?.salary === "object" ? existingPersonel.salary : {};
+
+  payload.salary = {
+    grossAmount:
+      formData.salary && formData.salary.trim() !== ""
+        ? parseFloat(formData.salary)
+        : existingSalary?.grossAmount ?? 0,
+    netAmount: existingSalary?.netAmount ?? 0,
+    currency: existingSalary?.currency || "TL",
+    bankName:
+      formData.bankName && formData.bankName.trim() !== ""
+        ? formData.bankName.trim()
+        : existingSalary?.bankName ?? null,
+    iban:
+      formData.iban && formData.iban.trim() !== ""
+        ? formData.iban.trim()
+        : existingSalary?.iban ?? null,
+  };
+
+  payload.insuranceInfo = {
+    sicilNo:
+      formData.insuranceInfo && formData.insuranceInfo.trim() !== ""
+        ? formData.insuranceInfo.trim()
+        : typeof existingPersonel?.insuranceInfo === "object"
+        ? existingPersonel.insuranceInfo?.sicilNo ?? null
+        : existingPersonel?.insuranceInfo ?? null,
+    startDate: startDateISO,
+  };
+
+  return payload;
+};
+
+const AddPersonelScreen = ({ navigation, route }) => {
+  const { mode = "create", personel = null } = route?.params || {};
+  const isEdit = mode === "edit";
+  const existingPersonelId = isEdit ? extractEmployeeId(personel) : null;
+
+  const initialValues = useMemo(
+    () => getInitialValues(personel),
+    [personel]
+  );
+
+  const {
+    addPersonel,
+    updatePersonel,
+    createPersonelUser,
+    fetchPersonelList,
+    isLoading,
+  } = usePersonelStore();
+
+  const [selectedDepartmentIndex, setSelectedDepartmentIndex] = useState(() =>
+    ensureIndex(departments, initialValues.department)
+  );
+  const [selectedContractIndex, setSelectedContractIndex] = useState(() =>
+    ensureIndex(contractTypes, initialValues.contractType)
+  );
+  const [selectedGenderIndex, setSelectedGenderIndex] = useState(() =>
+    ensureIndex(genderOptions, initialValues.gender)
+  );
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    watch,
+  } = useForm({
+    resolver: zodResolver(personelSchema),
+    defaultValues: initialValues,
   });
 
-  const onSubmit = async (data) => {
-    console.log("Form Data:", data);
+  useEffect(() => {
+    reset(initialValues);
+    setSelectedDepartmentIndex(
+      ensureIndex(departments, initialValues.department)
+    );
+    setSelectedContractIndex(
+      ensureIndex(contractTypes, initialValues.contractType)
+    );
+    setSelectedGenderIndex(ensureIndex(genderOptions, initialValues.gender));
+  }, [initialValues, reset]);
+
+  const createLoginAccount = watch("createLoginAccount");
+
+  const handleSuccessNavigation = () => {
+    navigation.popToTop?.();
+    navigation.navigate("PersonelList");
+  };
+
+  const onSubmit = async (formData) => {
+    if (isEdit && !existingPersonelId) {
+      Alert.alert("Hata", "Personel kimliği bulunamadı.");
+      return;
+    }
+
+    const payload = buildEmployeePayload({
+      formData,
+      selectedDepartmentIndex,
+      selectedContractIndex,
+      selectedGenderIndex,
+      existingPersonel: personel,
+    });
 
     try {
-      // Backend constructor'ına uygun veri formatı
-      const processedData = {
-        // userId backend'de otomatik oluşturulacak veya authentication'dan gelecek
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email, // Required field
-        startDate: data.startDate
-          ? parseDDMMYYYYToDate(data.startDate).toISOString().split("T")[0]
-          : null,
-        workingHoursPerDay: data.workingHoursPerDay || 8,
-        contractType:
-          contractTypes[selectedContractIndex.row] || "Belirsiz Süreli",
-        // Salary obje formatında - backend constructor'a uygun
-        salary: {
-          grossAmount:
-            data.salary && data.salary.trim() !== ""
-              ? parseFloat(data.salary)
-              : 0,
-          netAmount: 0, // Backend hesaplayacak
-          currency: "TL",
-          bankName:
-            data.bankName && data.bankName.trim() !== "" ? data.bankName : null,
-          iban: data.iban && data.iban.trim() !== "" ? data.iban : null,
-        },
-        // Insurance info obje formatında
-        insuranceInfo: {
-          sicilNo:
-            data.insuranceInfo && data.insuranceInfo.trim() !== ""
-              ? data.insuranceInfo
-              : null,
-          startDate: data.startDate
-            ? parseDDMMYYYYToDate(data.startDate).toISOString().split("T")[0]
-            : null,
-        },
-        isActive: data.isActive !== undefined ? data.isActive : true,
-      };
-
-      // Optional alanları sadece doluysa ekle
-      if (data.employeeCode && data.employeeCode.trim() !== "") {
-        processedData.employeeCode = data.employeeCode;
+      let result;
+      if (isEdit) {
+        result = await updatePersonel(existingPersonelId, payload);
+      } else {
+        result = await addPersonel(payload);
       }
-      if (data.profilePictureUrl && data.profilePictureUrl.trim() !== "") {
-        processedData.profilePictureUrl = data.profilePictureUrl;
-      }
-      if (data.phoneNumber && data.phoneNumber.trim() !== "") {
-        processedData.phoneNumber = data.phoneNumber;
-      }
-      if (data.tcKimlikNo && data.tcKimlikNo.trim() !== "") {
-        processedData.tcKimlikNo = data.tcKimlikNo;
-      }
-      if (data.dateOfBirth && data.dateOfBirth.trim() !== "") {
-        processedData.dateOfBirth = parseDDMMYYYYToDate(data.dateOfBirth)
-          .toISOString()
-          .split("T")[0];
-      }
-      if (genderOptions[selectedGenderIndex.row]) {
-        processedData.gender = genderOptions[selectedGenderIndex.row];
-      }
-      if (data.address && data.address.trim() !== "") {
-        processedData.address = data.address;
-      }
-      if (data.position && data.position.trim() !== "") {
-        processedData.position = data.position;
-      }
-      if (departments[selectedDepartmentIndex.row]) {
-        processedData.department = departments[selectedDepartmentIndex.row];
-      }
-      if (data.terminationDate && data.terminationDate.trim() !== "") {
-        processedData.terminationDate = parseDDMMYYYYToDate(
-          data.terminationDate
-        )
-          .toISOString()
-          .split("T")[0];
-      }
-
-      console.log("Processed Data for Backend:", processedData);
-
-      const result = await addPersonel(processedData);
 
       if (result.success) {
-        // Başarılı ekleme sonrası listeyi yenile
+        let accountError = null;
+
+        if (!isEdit && formData.createLoginAccount) {
+          const employeeId = extractEmployeeId(result.employee);
+          if (employeeId) {
+            const accountResult = await createPersonelUser(
+              employeeId,
+              formData.email,
+              formData.password?.trim()
+            );
+            if (!accountResult.success) {
+              accountError =
+                accountResult.error ||
+                "Kullanıcı hesabı oluşturulurken bir hata oluştu.";
+            }
+          } else {
+            accountError = "Personel kimliği alınamadığı için hesap açılamadı.";
+          }
+        }
+
         await fetchPersonelList();
 
-        Alert.alert("Başarılı", "Personel başarıyla eklendi", [
-          {
-            text: "Tamam",
-            onPress: () => {
-              reset();
-              // PersonelListScreen'e yönlendir
-              navigation.navigate("PersonelList");
+        const message = isEdit
+          ? "Personel bilgileri başarıyla güncellendi."
+          : accountError
+          ? `Personel kaydedildi ancak kullanıcı hesabı oluşturulamadı.\n\nDetay: ${accountError}`
+          : "Personel ve kullanıcı hesabı başarıyla oluşturuldu.";
+
+        Alert.alert(
+          isEdit ? "Başarılı" : accountError ? "Personel eklendi" : "Başarılı",
+          message,
+          [
+            {
+              text: "Tamam",
+              onPress: () => {
+                handleSuccessNavigation();
+              },
             },
-          },
-        ]);
+          ]
+        );
       } else {
         Alert.alert(
           "Hata",
-          result.error || "Personel eklenirken bir hata oluştu"
+          result.error ||
+            (isEdit
+              ? "Personel güncellenirken bir hata oluştu"
+              : "Personel eklenirken bir hata oluştu")
         );
       }
     } catch (error) {
@@ -307,10 +517,9 @@ const AddPersonelScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <Layout style={styles.content}>
-        {/* Header */}
         <View style={styles.header}>
           <Text category="h4" style={styles.title}>
-            Yeni Personel Ekle
+            {isEdit ? "Personeli Düzenle" : "Yeni Personel Ekle"}
           </Text>
         </View>
 
@@ -319,7 +528,6 @@ const AddPersonelScreen = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
         >
           <Card style={styles.formCard}>
-            {/* Personal Information */}
             <Text category="h6" style={styles.sectionTitle}>
               Kişisel Bilgiler
             </Text>
@@ -447,7 +655,6 @@ const AddPersonelScreen = ({ navigation }) => {
               ))}
             </Select>
 
-            {/* Work Information */}
             <Text category="h6" style={styles.sectionTitle}>
               İş Bilgileri
             </Text>
@@ -615,7 +822,9 @@ const AddPersonelScreen = ({ navigation }) => {
                   label="Günlük Çalışma Saati"
                   placeholder="8"
                   value={value?.toString() || "8"}
-                  onChangeText={(text) => onChange(parseInt(text) || 8)}
+                  onChangeText={(text) =>
+                    onChange(Number.parseInt(text, 10) || 8)
+                  }
                   keyboardType="numeric"
                   status={errors.workingHoursPerDay ? "danger" : "basic"}
                   caption={errors.workingHoursPerDay?.message}
@@ -624,7 +833,6 @@ const AddPersonelScreen = ({ navigation }) => {
               )}
             />
 
-            {/* Additional Information */}
             <Text category="h6" style={styles.sectionTitle}>
               Ek Bilgiler
             </Text>
@@ -656,7 +864,7 @@ const AddPersonelScreen = ({ navigation }) => {
                   placeholder="Tam adres"
                   value={value}
                   onChangeText={onChange}
-                  multiline={true}
+                  multiline
                   numberOfLines={3}
                   style={styles.input}
                 />
@@ -676,9 +884,98 @@ const AddPersonelScreen = ({ navigation }) => {
                 />
               )}
             />
+
+            {isEdit && (
+              <Controller
+                control={control}
+                name="isActive"
+                render={({ field: { onChange, value } }) => (
+                  <Toggle
+                    checked={value}
+                    onChange={onChange}
+                    style={styles.toggle}
+                  >
+                    Personel aktif
+                  </Toggle>
+                )}
+              />
+            )}
+
+            {!isEdit && (
+              <>
+                <Controller
+                  control={control}
+                  name="createLoginAccount"
+                  render={({ field: { onChange, value } }) => (
+                    <Toggle
+                      checked={value}
+                      onChange={onChange}
+                      style={styles.toggle}
+                    >
+                      Kullanıcı giriş hesabı oluştur
+                    </Toggle>
+                  )}
+                />
+
+                {createLoginAccount && (
+                  <>
+                    <Controller
+                      control={control}
+                      name="password"
+                      render={({ field: { onChange, value } }) => (
+                        <Input
+                          label="Giriş Şifresi"
+                          placeholder="En az 6 karakter"
+                          value={value}
+                          onChangeText={onChange}
+                      secureTextEntry={!showPassword}
+                          status={errors.password ? "danger" : "basic"}
+                          caption={errors.password?.message}
+                          style={styles.input}
+                          accessoryRight={() => (
+                        <Text
+                          style={styles.passwordEye}
+                          onPress={() => setShowPassword((prev) => !prev)}
+                        >
+                          {showPassword ? "🙈" : "👁"}
+                        </Text>
+                          )}
+                        />
+                      )}
+                    />
+
+                    <Controller
+                      control={control}
+                      name="confirmPassword"
+                      render={({ field: { onChange, value } }) => (
+                        <Input
+                          label="Şifre Tekrarı"
+                          placeholder="Şifreyi tekrar girin"
+                          value={value}
+                          onChangeText={onChange}
+                      secureTextEntry={!showConfirmPassword}
+                          status={errors.confirmPassword ? "danger" : "basic"}
+                          caption={errors.confirmPassword?.message}
+                          style={styles.input}
+                      accessoryRight={() => (
+                        <Text
+                          style={styles.passwordEye}
+                          onPress={() =>
+                            setShowConfirmPassword((prev) => !prev)
+                          }
+                        >
+                          {showConfirmPassword ? "🙈" : "👁"}
+                        </Text>
+                      )}
+                        />
+                      )}
+                    />
+                  </>
+                )}
+              </>
+            )}
           </Card>
 
-          {/* Action Buttons */}
           <View style={styles.actionButtons}>
             <Button
               appearance="ghost"
@@ -693,7 +990,13 @@ const AddPersonelScreen = ({ navigation }) => {
               disabled={isLoading}
               style={styles.submitButton}
             >
-              {isLoading ? "Ekleniyor..." : "Personel Ekle"}
+              {isLoading
+                ? isEdit
+                  ? "Güncelleniyor..."
+                  : "Ekleniyor..."
+                : isEdit
+                ? "Kaydet"
+                : "Personel Ekle"}
             </Button>
           </View>
         </ScrollView>
@@ -739,11 +1042,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
+  toggle: {
+    marginBottom: 16,
+  },
   actionButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 12,
     marginBottom: 20,
+  },
+  passwordEye: {
+    fontSize: 16,
+    paddingHorizontal: 8,
   },
   cancelButton: {
     flex: 1,

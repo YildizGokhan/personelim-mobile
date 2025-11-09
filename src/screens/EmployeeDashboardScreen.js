@@ -15,12 +15,15 @@ const EmployeeDashboardScreen = ({ navigation }) => {
     myAdvances,
     fetchMyLeaves,
     fetchMyAdvances,
+    myTimesheets,
+    fetchMyTimesheets,
   } = usePersonelStore();
 
   useEffect(() => {
     fetchMyData();
     fetchMyLeaves();
     fetchMyAdvances();
+    fetchMyTimesheets();
   }, []);
 
   const quickActions = [
@@ -44,6 +47,13 @@ const EmployeeDashboardScreen = ({ navigation }) => {
       action: () => navigation.navigate("CreateAdvance"),
       color: "#FF9800",
       icon: "card-outline",
+    },
+    {
+      title: "Mesai Kaydı",
+      subtitle: "Çalışma saatlerini yönet",
+      action: () => navigation.navigate("Timesheets"),
+      color: "#00BCD4",
+      icon: "time-outline",
     },
     {
       title: "İzin Geçmişi",
@@ -140,6 +150,15 @@ const EmployeeDashboardScreen = ({ navigation }) => {
                 Bekleyen İzinler
               </Text>
             </Card>
+
+            <Card style={styles.statCard}>
+              <Text category="h6" style={styles.statNumber}>
+                {myTimesheets?.length || 0}
+              </Text>
+              <Text category="s2" style={styles.statLabel}>
+                Mesai Kayıtlarım
+              </Text>
+            </Card>
           </View>
 
           {/* Quick Actions */}
@@ -201,6 +220,56 @@ const EmployeeDashboardScreen = ({ navigation }) => {
                 <View style={styles.emptyState}>
                   <Text category="s2" style={styles.emptyText}>
                     Henüz aktivite bulunmuyor
+                  </Text>
+                </View>
+              )}
+            </View>
+          </Card>
+
+          <Card style={styles.recentCard}>
+            <Text category="h6" style={styles.recentTitle}>
+              Son Mesai Kayıtları
+            </Text>
+            <View style={styles.recentList}>
+              {myTimesheets?.slice(0, 3).map((timesheet, index) => (
+                <View key={index} style={styles.recentItem}>
+                  <View style={styles.recentIcon}>
+                    <Ionicons
+                      name="time-outline"
+                      size={20}
+                      color="#00BCD4"
+                    />
+                  </View>
+                  <View style={styles.recentContent}>
+                    <Text category="s2">
+                      {timesheet?.date
+                        ? new Date(timesheet.date).toLocaleDateString("tr-TR")
+                        : "Tarih belirtilmedi"}
+                    </Text>
+                    <Text category="c1">
+                      {[
+                        timesheet?.startTime ||
+                          timesheet?.clockIn ||
+                          timesheet?.inTime,
+                        timesheet?.endTime ||
+                          timesheet?.clockOut ||
+                          timesheet?.outTime,
+                      ]
+                        .filter(Boolean)
+                        .join(" - ")}
+                    </Text>
+                    {timesheet?.notes && (
+                      <Text category="c1" style={styles.timesheetNote}>
+                        {timesheet.notes}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              ))}
+              {(!myTimesheets || myTimesheets.length === 0) && (
+                <View style={styles.emptyState}>
+                  <Text category="s2" style={styles.emptyText}>
+                    Henüz mesai kaydı bulunmuyor
                   </Text>
                 </View>
               )}
@@ -324,6 +393,10 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: "#999",
+  },
+  timesheetNote: {
+    marginTop: 4,
+    color: "#757575",
   },
 });
 

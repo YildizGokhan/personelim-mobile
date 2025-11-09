@@ -8,6 +8,7 @@ import EmployeeDashboardScreen from "../screens/EmployeeDashboardScreen";
 import MyProfileScreen from "../screens/MyProfileScreen";
 import MyLeavesScreen from "../screens/MyLeavesScreen";
 import MyAdvancesScreen from "../screens/MyAdvancesScreen";
+import MyTimesheetsScreen from "../screens/MyTimesheetsScreen";
 
 const Tab = createBottomTabNavigator();
 
@@ -28,6 +29,8 @@ const EmployeeTabNavigator = () => {
             iconName = focused ? "calendar" : "calendar-outline";
           } else if (route.name === "Advances") {
             iconName = focused ? "card" : "card-outline";
+          } else if (route.name === "Timesheets") {
+            iconName = focused ? "time" : "time-outline";
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -67,6 +70,13 @@ const EmployeeTabNavigator = () => {
         component={MyAdvancesScreen}
         options={{
           tabBarLabel: "Avanslarım",
+        }}
+      />
+      <Tab.Screen
+        name="Timesheets"
+        component={MyTimesheetsScreen}
+        options={{
+          tabBarLabel: "Mesailerim",
         }}
       />
     </Tab.Navigator>

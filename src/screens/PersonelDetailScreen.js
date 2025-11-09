@@ -17,12 +17,21 @@ const PersonelDetailScreen = ({ navigation, route }) => {
   const { deletePersonel, isLoading } = usePersonelStore();
   const [personelData, setPersonelData] = useState(personel);
 
+  const personelId =
+    personelData?.id ||
+    personelData?._id ||
+    personelData?.employeeId ||
+    personelData?.userId;
+
   useEffect(() => {
     setPersonelData(personel);
   }, [personel]);
 
   const handleEdit = () => {
-    navigation.navigate("EditPersonel", { personel: personelData });
+    navigation.navigate("AddPersonel", {
+      mode: "edit",
+      personel: personelData,
+    });
   };
 
   const handleDelete = () => {
@@ -38,7 +47,11 @@ const PersonelDetailScreen = ({ navigation, route }) => {
           text: "Sil",
           style: "destructive",
           onPress: async () => {
-            const result = await deletePersonel(personelData.id);
+            if (!personelId) {
+              Alert.alert("Hata", "Personel kimliği bulunamadı.");
+              return;
+            }
+            const result = await deletePersonel(personelId);
             if (result.success) {
               Alert.alert("Başarılı", "Personel başarıyla silindi", [
                 {

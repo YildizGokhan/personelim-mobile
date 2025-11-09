@@ -54,10 +54,53 @@ export const getAllEmployees = async (
     console.log("Employee service - Response data:", data);
 
     if (response.ok) {
-      console.log("Employee service - Success, returning data:", data.data);
+      const payload = data?.data ?? data ?? {};
+      let employees = [];
+
+      if (Array.isArray(payload)) {
+        employees = payload;
+      } else if (Array.isArray(payload.employees)) {
+        employees = payload.employees;
+      } else if (Array.isArray(payload.items)) {
+        employees = payload.items;
+      } else if (Array.isArray(payload.results)) {
+        employees = payload.results;
+      } else if (payload.employees && typeof payload.employees === "object") {
+        employees = Object.values(payload.employees);
+      } else if (payload.data && Array.isArray(payload.data.employees)) {
+        employees = payload.data.employees;
+      } else if (Array.isArray(payload.data)) {
+        employees = payload.data;
+      }
+
+      const pagination =
+        payload.pagination ||
+        payload.meta ||
+        payload.pageInfo ||
+        payload.data?.pagination ||
+        {};
+
+      const total =
+        payload.total ??
+        payload.count ??
+        payload.totalCount ??
+        pagination.total ??
+        pagination.count ??
+        pagination.totalCount ??
+        employees.length;
+
+      console.log(
+        "Employee service - Success, employees length:",
+        employees.length
+      );
+
       return {
         success: true,
-        data: data.data || { employees: [], total: 0 },
+        data: {
+          employees,
+          pagination,
+          total,
+        },
       };
     } else {
       console.log("Employee service - Error:", data.message || data.error);
@@ -106,15 +149,200 @@ export const getCurrentEmployeeData = async () => {
     const data = await response.json();
 
     if (response.ok) {
+      const employeePayload =
+        data?.data?.employee ||
+        data?.data?.createdEmployee ||
+        data?.data ||
+        data?.employee ||
+        data;
+
       return {
         success: true,
-        employee: data.data,
+        employee: employeePayload,
+        meta: data?.meta || data?.data?.meta || null,
       };
     } else {
       return { success: false, error: data.message || data.error };
     }
   } catch (error) {
     console.error("Get current employee data error:", error);
+    return { success: false, error: "Bağlantı hatası. Lütfen tekrar deneyin." };
+  }
+};
+
+const extractEmployeeId = (payload) => {
+  if (!payload) return null;
+  const employee = payload.employee || payload.data || payload;
+  if (!employee) return null;
+  return employee.id || employee._id || employee.employeeId || null;
+};
+
+const resolveCurrentEmployeeId = async () => {
+  const profileResult = await getCurrentEmployeeData();
+  if (!profileResult.success) {
+    return {
+      success: false,
+      error: profileResult.error || "Çalışan bilgileri alınamadı",
+    };
+  }
+
+  const employeeId = extractEmployeeId(profileResult);
+
+  if (!employeeId) {
+    return {
+      success: false,
+      error: "Çalışan kimliği bulunamadı",
+    };
+  }
+
+  return {
+    success: true,
+    employeeId,
+  };
+};
+
+// Çalışanın kendi mesai kayıtlarını getir
+export const getMyTimesheets = async (
+  page = 1,
+  limit = 10,
+  startDate = null,
+  endDate = null
+) => {
+  try {
+    const { success, error, employeeId } = await resolveCurrentEmployeeId();
+    if (!success) {
+      return { success: false, error };
+    }
+
+    const headers = await getAuthHeaders();
+    let url = `${API_BASE_URL}/employees/${employeeId}/timesheets?page=${page}&limit=${limit}`;
+
+    if (startDate) {
+      url += `&startDate=${encodeURIComponent(startDate)}`;
+    }
+
+    if (endDate) {
+      url += `&endDate=${encodeURIComponent(endDate)}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      return {
+        success: true,
+        data: data.data ?? data,
+      };
+    } else {
+      return { success: false, error: data.message || data.error };
+    }
+  } catch (error) {
+    console.error("Get timesheets error:", error);
+    return { success: false, error: "Bağlantı hatası. Lütfen tekrar deneyin." };
+  }
+};
+
+// Çalışan için mesai kaydı oluştur
+export const createTimesheetEntry = async (timesheetData) => {
+  try {
+    const { success, error, employeeId } = await resolveCurrentEmployeeId();
+    if (!success) {
+      return { success: false, error };
+    }
+
+    const headers = await getAuthHeaders();
+    const response = await fetch(
+      `${API_BASE_URL}/employees/${employeeId}/timesheets`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(timesheetData),
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+      return {
+        success: true,
+        timesheet: data.data ?? data,
+      };
+    } else {
+      return { success: false, error: data.message || data.error };
+    }
+  } catch (error) {
+    console.error("Create timesheet error:", error);
+    return { success: false, error: "Bağlantı hatası. Lütfen tekrar deneyin." };
+  }
+};
+
+// Çalışanın mesai kaydını güncelle
+export const updateTimesheetEntry = async (timesheetId, timesheetData) => {
+  try {
+    const { success, error, employeeId } = await resolveCurrentEmployeeId();
+    if (!success) {
+      return { success: false, error };
+    }
+
+    const headers = await getAuthHeaders();
+    const response = await fetch(
+      `${API_BASE_URL}/employees/${employeeId}/timesheets/${timesheetId}`,
+      {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(timesheetData),
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+      return {
+        success: true,
+        timesheet: data.data ?? data,
+      };
+    } else {
+      return { success: false, error: data.message || data.error };
+    }
+  } catch (error) {
+    console.error("Update timesheet error:", error);
+    return { success: false, error: "Bağlantı hatası. Lütfen tekrar deneyin." };
+  }
+};
+
+// Çalışanın mesai kaydını sil
+export const deleteTimesheetEntry = async (timesheetId) => {
+  try {
+    const { success, error, employeeId } = await resolveCurrentEmployeeId();
+    if (!success) {
+      return { success: false, error };
+    }
+
+    const headers = await getAuthHeaders();
+    const response = await fetch(
+      `${API_BASE_URL}/employees/${employeeId}/timesheets/${timesheetId}`,
+      {
+        method: "DELETE",
+        headers,
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+      return {
+        success: true,
+        message: data.message || "Mesai kaydı silindi",
+      };
+    } else {
+      return { success: false, error: data.message || data.error };
+    }
+  } catch (error) {
+    console.error("Delete timesheet error:", error);
     return { success: false, error: "Bağlantı hatası. Lütfen tekrar deneyin." };
   }
 };
@@ -132,9 +360,16 @@ export const updateCurrentEmployeeData = async (updateData) => {
     const data = await response.json();
 
     if (response.ok) {
+      const employeePayload =
+        data?.data?.employee ||
+        data?.data?.updatedEmployee ||
+        data?.data ||
+        data?.employee ||
+        data;
+
       return {
         success: true,
-        employee: data.data,
+        employee: employeePayload,
       };
     } else {
       return { success: false, error: data.message || data.error };
@@ -178,9 +413,16 @@ export const createEmployee = async (employeeData) => {
     console.log("Parsed response data:", data);
 
     if (response.ok) {
+      const employeePayload =
+        data?.data?.employee ||
+        data?.data?.restoredEmployee ||
+        data?.data ||
+        data?.employee ||
+        data;
+
       return {
         success: true,
-        employee: data.data,
+        employee: employeePayload,
       };
     } else {
       console.error("Server error:", data);
@@ -206,9 +448,15 @@ export const updateEmployee = async (employeeId, updateData) => {
     const data = await response.json();
 
     if (response.ok) {
+      const employeePayload =
+        data?.data?.employee ||
+        data?.data ||
+        data?.employee ||
+        data;
+
       return {
         success: true,
-        employee: data.data,
+        employee: employeePayload,
       };
     } else {
       return { success: false, error: data.message || data.error };
@@ -281,9 +529,10 @@ export const getDeletedEmployees = async () => {
     const data = await response.json();
 
     if (response.ok) {
+      const payload = data?.data ?? data ?? {};
       return {
         success: true,
-        data: data.data || { employees: [], total: 0 },
+        data: payload,
       };
     } else {
       return { success: false, error: data.message || data.error };

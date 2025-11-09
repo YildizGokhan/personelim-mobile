@@ -33,6 +33,8 @@ const registerSchema = z
 
 const RegisterScreen = ({ navigation }) => {
   const { register, isLoading } = useAuthStore();
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
 
   const {
     control,
@@ -121,7 +123,15 @@ const RegisterScreen = ({ navigation }) => {
                   "En az 6 karakter, 1 büyük harf, 1 küçük harf, 1 rakam"
                 }
                 style={styles.input}
-                secureTextEntry
+                secureTextEntry={!showPassword}
+                accessoryRight={() => (
+                  <Text
+                    style={styles.passwordEye}
+                    onPress={() => setShowPassword((prev) => !prev)}
+                  >
+                    {showPassword ? "🙈" : "👁"}
+                  </Text>
+                )}
               />
             )}
           />
@@ -138,7 +148,15 @@ const RegisterScreen = ({ navigation }) => {
                 status={errors.confirmPassword ? "danger" : "basic"}
                 caption={errors.confirmPassword?.message}
                 style={styles.input}
-                secureTextEntry
+                secureTextEntry={!showConfirmPassword}
+                accessoryRight={() => (
+                  <Text
+                    style={styles.passwordEye}
+                    onPress={() => setShowConfirmPassword((prev) => !prev)}
+                  >
+                    {showConfirmPassword ? "🙈" : "👁"}
+                  </Text>
+                )}
               />
             )}
           />
@@ -195,6 +213,10 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     marginBottom: 8,
+  },
+  passwordEye: {
+    fontSize: 16,
+    paddingHorizontal: 8,
   },
 });
 

@@ -53,13 +53,13 @@ const PersonelListScreen = ({ navigation }) => {
   // İlk yükleme
   useEffect(() => {
     fetchPersonelList();
-  }, []);
+  }, [fetchPersonelList]);
 
   // Sayfa her açıldığında listeyi yenile
   useFocusEffect(
     React.useCallback(() => {
       fetchPersonelList();
-    }, [])
+    }, [fetchPersonelList])
   );
 
   const handleRefresh = () => {
